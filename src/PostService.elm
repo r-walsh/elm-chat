@@ -9,7 +9,7 @@ import Post exposing (Post)
 
 createUrl : String -> String
 createUrl path =
-    "http://localhost:8080/api/" ++ path
+    "http://localhost:8080/api/" ++ path ++ "?delay=2000"
 
 
 postDecoder : Decoder Post
@@ -28,3 +28,6 @@ decodePosts =
 getPosts : Task.Task Http.Error (List Post)
 getPosts =
     Http.toTask (Http.get (createUrl "posts") decodePosts)
+
+
+createNewPost : String -> String

@@ -13,20 +13,38 @@ import Post exposing (Post)
 ---- MODEL ----
 
 
+type LoadingStatus
+    = Complete
+    | Loading
+    | Error
+
+
 type alias Model =
     { newPost : NewPost.Model
     , logo : String
+    , loadingWhite : String
+    , loadingBlue : String
     , posts : List Post
+    , loadingPosts : LoadingStatus
     }
 
 
-init : String -> ( Model, Cmd Msg )
-init path =
+type alias Flags =
+    { logoPath : String
+    , loadingWhite : String
+    , loadingBlue : String
+    }
+
+
+init : Flags -> ( Model, Cmd Msg )
+init paths =
     let
         ( newPost, _ ) =
             NewPost.init
     in
-        ( Model newPost path [], Task.attempt handleResponse PostService.getPosts )
+        ( Model newPost paths.logoPath paths.loadingWhite paths.loadingBlue [] Loading
+        , Task.attempt handleResponse PostService.getPosts
+        )
 
 
 
@@ -37,6 +55,7 @@ type Msg
     = UpdateNewPost NewPost.Msg
     | GetPosts
     | SetPosts (List Post)
+    | SetPostsError
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -50,10 +69,13 @@ update msg model =
                 ( { model | newPost = updatedNewPost }, Cmd.none )
 
         SetPosts posts ->
-            ( { model | posts = posts }, Cmd.none )
+            ( { model | posts = posts, loadingPosts = Complete }, Cmd.none )
+
+        SetPostsError ->
+            ( { model | loadingPosts = Error }, Cmd.none )
 
         GetPosts ->
-            ( model, Task.attempt handleResponse PostService.getPosts )
+            ( { model | loadingPosts = Loading }, Task.attempt handleResponse PostService.getPosts )
 
 
 handleResponse : Result Http.Error (List Post) -> Msg
@@ -62,8 +84,8 @@ handleResponse posts =
         Ok posts ->
             SetPosts posts
 
-        Err err ->
-            SetPosts []
+        Err _ ->
+            SetPostsError
 
 
 
@@ -83,7 +105,7 @@ view model =
             ]
         , Html.map UpdateNewPost (NewPost.view model.newPost)
         , div [ class "app__post-wrapper" ]
-            [ button [ class "app__load-more-posts", onClick GetPosts ] [ text "Load more posts..." ]
+            [ button [ class "app__load-more-posts", onClick GetPosts ] [ renderLoadButtonInternals model ]
             , div [] (List.map renderPosts model.posts)
             ]
         ]
@@ -98,11 +120,24 @@ renderPosts post =
         ]
 
 
+renderLoadButtonInternals : Model -> Html Msg
+renderLoadButtonInternals model =
+    case model.loadingPosts of
+        Error ->
+            text "There was a problem fetching posts. Try again?"
+
+        Loading ->
+            img [ alt "loading image", class "app__loading-icon", src model.loadingBlue ] []
+
+        Complete ->
+            text "Loading more posts..."
+
+
 
 ---- PROGRAM ----
 
 
-main : Program String Model Msg
+main : Program Flags Model Msg
 main =
     Html.programWithFlags
         { view = view
