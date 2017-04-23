@@ -8,24 +8,19 @@ import Task
 import NewPost
 import PostService
 import Post exposing (Post)
+import LoadingStatus exposing (..)
 
 
 ---- MODEL ----
 
 
-type LoadingStatus
-    = Complete
-    | Loading
-    | Error
-
-
 type alias Model =
     { newPost : NewPost.Model
     , logo : String
-    , loadingWhite : String
     , loadingBlue : String
     , posts : List Post
     , loadingPosts : LoadingStatus
+    , creatingPost : LoadingStatus
     }
 
 
@@ -40,9 +35,9 @@ init : Flags -> ( Model, Cmd Msg )
 init paths =
     let
         ( newPost, _ ) =
-            NewPost.init
+            NewPost.init paths.loadingWhite
     in
-        ( Model newPost paths.logoPath paths.loadingWhite paths.loadingBlue [] Loading
+        ( Model newPost paths.logoPath paths.loadingBlue [] Loading Complete
         , Task.attempt handleResponse PostService.getPosts
         )
 
@@ -56,6 +51,7 @@ type Msg
     | GetPosts
     | SetPosts (List Post)
     | SetPostsError
+    | CreatePost (Result Http.Error Post)
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -65,6 +61,27 @@ update msg model =
             let
                 ( updatedNewPost, _ ) =
                     NewPost.update newPostMsg model.newPost
+            in
+                case newPostMsg of
+                    NewPost.AttemptCreatePost author content ->
+                        ( { model | newPost = updatedNewPost }
+                        , Http.send CreatePost (PostService.createNewPost author content)
+                        )
+
+                    _ ->
+                        ( { model | newPost = updatedNewPost }, Cmd.none )
+
+        CreatePost (Ok post) ->
+            let
+                ( updatedNewPost, _ ) =
+                    NewPost.update (NewPost.CreatePostSuccess) model.newPost
+            in
+                ( { model | posts = post :: model.posts, newPost = updatedNewPost }, Cmd.none )
+
+        CreatePost (Err _) ->
+            let
+                ( updatedNewPost, _ ) =
+                    NewPost.update (NewPost.CreatePostFailure) model.newPost
             in
                 ( { model | newPost = updatedNewPost }, Cmd.none )
 
